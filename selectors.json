@@ -1,0 +1,9 @@
+{
+    "website": "https://instamatch365.com/",
+    "landing_page_login_button": "await page.locator('#hea_1 > div.Header__navBar___1I-Fm:nth-of-type(5) > nav.Buttons__buttons___aLOW8.authBtnTopbar > a.mb-button.mb-button--login.Buttons__login___2_odk.loginBtn.cls_login_btn:nth-of-type(1)');",
+    "username_field": "await page.locator('#user_login_id');",
+    "password_field": "await page.locator('#passwordId');",
+    "login_page_login_button": "await page.locator('#passwordId');",
+    "popup_close_button": "await page.locator('#app-next > div.mb-app:nth-of-type(1) > div.instamatch-container_overlay.switchuser_riv:nth-of-type(20) > div.instamatch-container > button.animCLseBtn:nth-of-type(1)');",
+    "avaliable_balance": "#hea_1 > div.Header__navBar___1I-Fm:nth-of-type(5) > div.Balances__balances___1bDig.cls-Balances__balances___1bDig.cls_wal_pop:nth-of-type(3) > div.Balances__item___18HEP.undefined.availableBalance:nth-of-type(3) > div.Balances__value___3Ht3w:nth-of-type(2) > span.wallet_balance"
+}
