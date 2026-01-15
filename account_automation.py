@@ -7,11 +7,10 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 
 # ================= CONFIG =================
-MAX_WORKERS = 1  # KEEP THIS AT 1. Parallel = Instant Ban.
+MAX_WORKERS = 1  # MUST BE 1 to avoid detection
 MAX_RETRIES = 2
 ACCOUNTS_FILE = "accounts.csv"
 RESULTS_FILE = "account_balances.csv"
-PROGRESS_FILE = "progress.json"
 SELECTORS_FILE = "selectors.json"
 
 # ================= GLOBALS =================
@@ -58,7 +57,6 @@ async def save_result(row):
 
 async def dismiss_overlays(page):
     try:
-        # Click close buttons if they exist
         await page.evaluate("""() => {
             const selectors = ['.modal-close', '.popup-close', 'button[aria-label="Close"]', '.close-btn'];
             selectors.forEach(s => {
@@ -83,7 +81,6 @@ async def process_account(browser, account, selectors):
         extra_http_headers={"Accept-Language": "en-IN,en;q=0.9"}
     )
     
-    # Block media to speed up
     await context.route("**/*", lambda route: route.abort() 
         if route.request.resource_type in ["image", "media", "font"] 
         else route.continue_())
@@ -108,15 +105,21 @@ async def process_account(browser, account, selectors):
         if not title or title.strip() == "":
             raise Exception("BLOCKED: Generated empty page title.")
 
-        # 4. Login (Improved)
+        # 4. Login (FIXED: Waits for Modal)
         print(f"[{username}] Logging in...", flush=True)
         await dismiss_overlays(page)
         
-        # Click Login Button
-        try:
-            # Look for ANY button with 'Login' text
-            await page.click("text=Login", timeout=5000)
-        except:
+        # Click Login Button - Trying multiple potential selectors
+        login_clicked = False
+        for btn_selector in ["button:has-text('Login')", "a:has-text('Login')", "text=Login"]:
+            try:
+                if await page.is_visible(btn_selector):
+                    await page.click(btn_selector, timeout=2000)
+                    login_clicked = True
+                    break
+            except: pass
+        
+        if not login_clicked:
             # Fallback: JS Click
             await page.evaluate("""() => {
                 const els = document.querySelectorAll('a, span, button, div');
@@ -125,21 +128,29 @@ async def process_account(browser, account, selectors):
                 }
             }""")
 
-        # 5. Fill Credentials (ROBUST METHOD)
-        # We try specific ID first, then fallbacks if ID is missing (mobile layout)
+        # CRITICAL FIX: Wait for the login form to actually appear
         try:
-            # Try standard ID
+            # Wait up to 5s for ANY password field to be visible. 
+            # This ensures the modal is open before we try to type.
+            await page.wait_for_selector("input[type='password']", state="visible", timeout=5000)
+        except:
+            print(f"[{username}] WARNING: Login modal not detected. Retrying click...", flush=True)
+            await page.click("text=Login", timeout=2000)
+            await asyncio.sleep(2)
+
+        # 5. Fill Credentials (ROBUST)
+        # Try standard ID first
+        try:
             await page.fill(selectors["username_field"], username, timeout=3000)
         except:
-            print(f"[{username}] Standard ID not found, searching for inputs...", flush=True)
-            # Try Placeholder or Type
+            print(f"[{username}] Standard ID not found, searching for generic inputs...", flush=True)
+            # Try finding by type or placeholder
             try:
                 await page.fill("input[placeholder*='sername']", username, timeout=3000)
             except:
-                # Last resort: Fill the first visible text input
                 await page.fill("input[type='text']:visible", username, timeout=3000)
 
-        # Fill Password
+        # Try Password
         try:
             await page.fill(selectors["password_field"], password, timeout=3000)
         except:
@@ -147,21 +158,18 @@ async def process_account(browser, account, selectors):
 
         await page.keyboard.press("Enter")
 
-        # 6. Smart Balance Wait (Robust Check)
+        # 6. Smart Balance Wait
         print(f"[{username}] Login submitted. Waiting for balance...", flush=True)
         
         start_time = asyncio.get_event_loop().time()
         balance_found = False
         clean_text = "N/A"
 
-        # Poll for 30 seconds
         while (asyncio.get_event_loop().time() - start_time) < 30:
             try:
-                # Get text directly (ignoring visibility hidden/mobile drawers)
                 raw_text = await page.locator(selectors["avaliable_balance"]).text_content(timeout=500)
                 if raw_text:
                     text = raw_text.strip()
-                    # Valid if: Not "Loading...", Not Empty, Contains Digit
                     if "loading" not in text.lower() and any(c.isdigit() for c in text):
                         clean_text = text
                         balance_found = True
@@ -173,7 +181,7 @@ async def process_account(browser, account, selectors):
         if balance_found:
             return {"username": username, "password": password, "balance": clean_text, "status": "Success", "error": ""}
         
-        # Failure Dump
+        # Dump HTML on failure
         print(f"[{username}] FAILED: Balance not found. Dumping HTML...", flush=True)
         os.makedirs("debug_html", exist_ok=True)
         with open(f"debug_html/failed_{username}.html", "w", encoding="utf-8") as f:
@@ -190,8 +198,8 @@ async def worker(id, queue, browser, selectors):
     while not queue.empty():
         account = await queue.get()
         
-        # RANDOM DELAY (Crucial for Anti-Ban)
-        delay = random.uniform(10, 20) 
+        # Random Delay (Crucial for Anti-Ban)
+        delay = random.uniform(5, 12) 
         print(f"[Worker {id}] Sleeping {delay:.2f}s...", flush=True)
         await asyncio.sleep(delay)
 
@@ -208,7 +216,6 @@ async def worker(id, queue, browser, selectors):
                 err = str(e)
                 print(f"[Worker {id}] Error: {err[:100]}...")
                 
-                # CRITICAL: Stop if blocked to avoid wasting time
                 if "BLOCKED" in err:
                     print("CRITICAL: IP seems blocked. Stopping worker.")
                     async with stats_lock: STATS["failed"] += 1
@@ -239,11 +246,10 @@ async def main():
     for acc in accounts: queue.put_nowait(acc)
 
     async with async_playwright() as p:
-        # Launch with Stealth + Headless New
         browser = await p.chromium.launch(
             headless=True,
             args=[
-                "--headless=new", # Modern Headless
+                "--headless=new",
                 "--no-sandbox", 
                 "--disable-blink-features=AutomationControlled",
                 "--disable-infobars"
