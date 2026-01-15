@@ -6,7 +6,7 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 
 # ================= CONFIG =================
-MAX_WORKERS = 8
+MAX_WORKERS = 3
 MAX_RETRIES = 3
 
 ACCOUNTS_FILE = "accounts.csv"
@@ -151,13 +151,21 @@ async def process_account(browser, account, selectors):
         print(f"[{username}] Navigating...", flush=True)
         # Reduced timeout to 60s so it doesn't hang forever
         await page.goto(selectors["website"], wait_until="domcontentloaded", timeout=60000)
-        
+        title = await page.title()
+        print(f"[{username}] Page Title: {title}", flush=True)
         # 3. Login
         print(f"[{username}] Logging in...", flush=True)
         # Attempt to dismiss pre-login popups
         await dismiss_overlays(page, username)
         
-        await page.click(selectors["landing_page_login_button"])
+        try:
+            # Try specific selector first, but with a short timeout
+            await page.click(selectors["landing_page_login_button"], timeout=5000)
+        except:
+            # Fallback: Click any element that visually contains "Login"
+            print(f"[{username}] Standard selector failed, trying text match...")
+            await page.click("text=Login", timeout=5000)
+            
         await page.fill(selectors["username_field"], username)
         await page.fill(selectors["password_field"], password)
         await page.press(selectors["password_field"], "Enter")
@@ -279,7 +287,19 @@ async def main():
         queue.put_nowait(acc)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        async with async_playwright() as p:
+        # UPDATED LAUNCH ARGS
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage", # Essential for Docker/CI environments
+                "--disable-accelerated-2d-canvas",
+                "--no-zygote",
+                "--start-maximized"
+            ]
+        )
         tasks = [asyncio.create_task(worker(i, queue, browser, selectors)) for i in range(MAX_WORKERS)]
         await asyncio.gather(*tasks)
         await browser.close()
