@@ -130,7 +130,11 @@ async def process_account(browser, account, selectors):
     username = account["username"]
     password = account["password"]
 
-    context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+    # In process_account function
+    context = await browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
     
     # Block non-essential resources for faster loading
     async def block_resources(route):
