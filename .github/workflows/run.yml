@@ -24,7 +24,7 @@ jobs:
 
       - name: Create Accounts File
         run: |
-          echo "${{ secrets.ACCOUNTS_CSV }}" > instamatch_passwords1.csv
+          echo "${{ secrets.ACCOUNTS_CSV }}" > accounts.csv
         shell: bash
 
       - name: Cache Playwright browsers

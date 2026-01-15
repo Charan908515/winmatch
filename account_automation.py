@@ -7,9 +7,9 @@ from playwright.async_api import async_playwright
 
 # ================= CONFIG =================
 MAX_WORKERS = 10
-MAX_RETRIES = 5
+MAX_RETRIES = 2
 
-ACCOUNTS_FILE = "instamatch_passwords.csv"
+ACCOUNTS_FILE = "accounts.csv"
 RESULTS_FILE = "account_balances.csv"
 PROGRESS_FILE = "progress.json"
 SCREENSHOTS_DIR = "screenshots"
@@ -112,7 +112,20 @@ async def process_account(browser, account, selectors):
         java_script_enabled=True,
         locale="en-US",
     )
-    await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    # Enhanced Stealth Injection
+    stealth_js = """
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+        window.navigator.chrome = { runtime: {} };
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+            Promise.resolve({ state: 'denied' }) :
+            originalQuery(parameters)
+        );
+    """
+    await context.add_init_script(stealth_js)
     
     page = await context.new_page()
 
