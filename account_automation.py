@@ -6,8 +6,8 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 
 # ================= CONFIG =================
-MAX_WORKERS = 10
-MAX_RETRIES = 2
+MAX_WORKERS = 5
+MAX_RETRIES = 20
 
 ACCOUNTS_FILE = "accounts.csv"
 RESULTS_FILE = "account_balances.csv"
@@ -96,7 +96,7 @@ async def dismiss_overlays(page, username):
             # Try to click if visible, short timeout
             loc = page.locator(selector).first
             if await loc.is_visible():
-                await loc.click(timeout=500)
+                await loc.click(timeout=5000000)
                 # print(f"[{username}] Closed popup: {selector}")
                 await asyncio.sleep(0.5)
         except:
@@ -139,7 +139,7 @@ async def process_account(browser, account, selectors):
         )
 
         # 1. Navigate
-        await page.goto(selectors["website"], wait_until="domcontentloaded",timeout=600000)
+        await page.goto(selectors["website"], wait_until="domcontentloaded",timeout=6000000)
         await asyncio.sleep(2)
         
         # 2. Cleanup before login click
@@ -147,7 +147,7 @@ async def process_account(browser, account, selectors):
 
         # 3. Click Login Button
         try:
-            await page.click(selectors["landing_page_login_button"], timeout=10000)
+            await page.click(selectors["landing_page_login_button"], timeout=6000000)
         except:
             # Fallback JS click
             try:
@@ -165,7 +165,7 @@ async def process_account(browser, account, selectors):
 
         # 5. Wait for Login & Cleanup
         try:
-            await page.wait_for_load_state("networkidle", timeout=10000)
+            await page.wait_for_load_state("networkidle", timeout=6000000)
         except:
             pass
             
@@ -176,7 +176,7 @@ async def process_account(browser, account, selectors):
         balance = "N/A"
         try:
             bal_loc = page.locator(selectors["avaliable_balance"])
-            await bal_loc.wait_for(state="visible", timeout=30000)
+            await bal_loc.wait_for(state="visible", timeout=6000000)
             
             # Retry logic: Wait for actual number (not "LOADING...", "...", or empty)
             # Retries up to 10 times (approx 10-15 seconds)
@@ -204,7 +204,7 @@ async def process_account(browser, account, selectors):
         )
 
         if balance != "N/A":
-            print("No balance")
+            #print("No balance")
             return {
                 "username": username,
                 "password": password,
@@ -258,7 +258,7 @@ async def worker(worker_id, queue, browser, selectors):
                     try:
                         ctx = await browser.new_context()
                         pg = await ctx.new_page()
-                        await pg.goto(selectors["website"], timeout=30000)
+                        await pg.goto(selectors["website"], timeout=6000000)
                         await pg.screenshot(
                             path=os.path.join(SCREENSHOTS_DIR, f"{username}_ERROR.png")
                         )
