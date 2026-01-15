@@ -287,7 +287,7 @@ async def main():
         queue.put_nowait(acc)
 
     async with async_playwright() as p:
-        async with async_playwright() as p:
+        
         # UPDATED LAUNCH ARGS
         browser = await p.chromium.launch(
             headless=True,
