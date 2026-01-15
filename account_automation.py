@@ -5,9 +5,11 @@ import random
 import os
 from datetime import datetime
 from playwright.async_api import async_playwright
+import asyncio
 
+from playwright_stealth import stealth_async
 # ================= CONFIG =================
-MAX_WORKERS = 3
+MAX_WORKERS = 1
 MAX_RETRIES = 3
 
 ACCOUNTS_FILE = "accounts.csv"
@@ -139,13 +141,14 @@ async def process_account(browser, account, selectors):
         locale="en-IN",              # 1. Set Locale to India
         timezone_id="Asia/Kolkata",  # 2. Set Timezone to IST
         geolocation={"latitude": 17.3850, "longitude": 78.4867}, # 3. Set GPS (Hyderabad)
-        permissions=["geolocation"]  # Allow site to see the fake location
+        permissions=["geolocation"],  # Allow site to see the fake location
+        extra_http_headers={
+            "Accept-Language": "en-IN,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Referer": "https://www.google.com/"
+        }
     )
-    await context.add_init_script("""
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined
-        });
-    """)
+
     
     # Block heavy resources to speed up loading
     async def block_resources(route):
@@ -156,6 +159,7 @@ async def process_account(browser, account, selectors):
             
     await context.route("**/*", block_resources)
     page = await context.new_page()
+    await stealth_async(page)
 
     try:
         # 2. Navigate
@@ -213,7 +217,7 @@ async def process_account(browser, account, selectors):
                 # Get the text content (ignoring visibility)
                 bal_loc = page.locator(selectors["avaliable_balance"])
                 raw_text = await bal_loc.text_content(timeout=1000)
-                
+                print(f"[{username}] raw text :{raw_text}",flush=True)
                 if raw_text:
                     text = raw_text.strip()
                     
