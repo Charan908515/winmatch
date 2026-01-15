@@ -7,7 +7,7 @@ from playwright.async_api import async_playwright
 
 # ================= CONFIG =================
 MAX_WORKERS = 10
-MAX_RETRIES = 5
+MAX_RETRIES = 20
 
 ACCOUNTS_FILE = "accounts.csv"
 RESULTS_FILE = "account_balances.csv"
@@ -131,6 +131,16 @@ async def process_account(browser, account, selectors):
     password = account["password"]
 
     context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+    
+    # Block non-essential resources for faster loading
+    async def block_resources(route):
+        resource_type = route.request.resource_type
+        if resource_type in ["image", "stylesheet", "font", "media", "imageset"]:
+            await route.abort()
+        else:
+            await route.continue_()
+    
+    await context.route("**/*", block_resources)
     page = await context.new_page()
 
     try:
