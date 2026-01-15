@@ -147,8 +147,17 @@ async def process_account(browser, account, selectors):
         print(f"[{username}] Navigating...", flush=True)
         await page.goto(selectors["website"], wait_until="domcontentloaded", timeout=60000)
         await dismiss_overlays(page, username)
+        page_title = await page.title()
+        print(f"[{username}] Page Title: {page_title}", flush=True)
         print(f"[{username}] Logging in...", flush=True) # ADDED LOG
-        await page.click(selectors["landing_page_login_button"], timeout=60000)
+        try:
+            await page.click(selectors["landing_page_login_button"], timeout=60000)
+        except Exception as e:
+            print(f"[{username}] Login button not found! Taking screenshot...", flush=True)
+            # Make sure the 'screenshots' directory exists
+            os.makedirs("screenshots", exist_ok=True) 
+            await page.screenshot(path=f"screenshots/error_{username}.png")
+            raise e
         await page.fill(selectors["username_field"], username)
         await page.fill(selectors["password_field"], password)
         await page.press(selectors["password_field"], "Enter")
