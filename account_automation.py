@@ -7,7 +7,38 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 import asyncio
 
-from playwright_stealth import stealth_async
+#from playwright_stealth import stealth_async
+async def apply_stealth(page):
+    """Manually hides bot signals without needing the external library."""
+    await page.add_init_script("""
+        // 1. Pass the Webdriver Test.
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+        });
+
+        // 2. Mock Chrome Object (if missing in headless)
+        if (!window.chrome) {
+            window.chrome = { runtime: {} };
+        }
+
+        // 3. Mock Permissions (pass 'notifications' check)
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+            Promise.resolve({ state: 'denied' }) :
+            originalQuery(parameters)
+        );
+
+        // 4. Mock Plugins (Headless chrome usually has 0)
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5],
+        });
+
+        // 5. Mock Languages
+        Object.defineProperty(navigator, 'languages', {
+            get: () => ['en-IN', 'en-GB', 'en-US', 'en'],
+        });
+    """)
 # ================= CONFIG =================
 MAX_WORKERS = 1
 MAX_RETRIES = 3
@@ -159,7 +190,7 @@ async def process_account(browser, account, selectors):
             
     await context.route("**/*", block_resources)
     page = await context.new_page()
-    await stealth_async(page)
+    await apply_stealth(page)
 
     try:
         # 2. Navigate
