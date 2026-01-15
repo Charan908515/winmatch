@@ -53,8 +53,14 @@ async def process_account(browser, account, selectors):
     password = account["password"]
 
     context = await browser.new_context(
-        viewport={"width": 1920, "height": 1080}
+        viewport={"width": 1920, "height": 1080},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        java_script_enabled=True,
+        locale="en-US",
     )
+    # Anti-detect script injection
+    await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
     page = await context.new_page()
 
     try:
@@ -170,8 +176,16 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ],
         )
+
+        workers = [
+            asyncio.create_task(worker(i, queue, browser, selectors))
+        ] # Reduce workers to avoid rapid-fire blocking for now? No, kept logic but let's change context.
 
         workers = [
             asyncio.create_task(worker(i, queue, browser, selectors))
