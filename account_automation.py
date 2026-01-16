@@ -75,6 +75,7 @@ async def nuclear_popup_removal(page, username):
     NUCLEAR option: Remove ALL overlays, modals, and high z-index elements.
     """
     try:
+        if page.is_closed(): return
         removed_count = await page.evaluate("""() => {
             let count = 0;
             const overlayIds = [
@@ -151,7 +152,9 @@ async def click_all_close_buttons(page, username):
 
 async def aggressive_popup_cleanup(page, username, rounds=3):
     try:
+        
         for round_num in range(rounds):
+            if page.is_closed(): return
             await nuclear_popup_removal(page, username)
             await asyncio.sleep(0.3)
             await click_all_close_buttons(page, username)
@@ -200,7 +203,14 @@ async def process_account(browser, account, selectors):
         viewport={"width": 1920, "height": 1080},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         java_script_enabled=True,
-        locale="en-US",
+        locale="en-IN",
+        extra_http_headers={
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+        }
     )
     
     stealth_js = """
@@ -225,7 +235,20 @@ async def process_account(browser, account, selectors):
         )
 
         print(f"[{username}] 🌐 Navigating...", flush=True)
-        await page.goto(selectors["website"], timeout=600000)
+        try:
+            await page.goto(selectors["website"], timeout=900000)
+        except:
+            print(f"[{username}] ⚠️ Navigation timed out (continuing)...", flush=True)
+
+        # --- CRITICAL: CHECK FOR 403 BLOCKED ---
+        try:
+            title = await page.title()
+            content = await page.content()
+            if "403 Forbidden" in title or "Access Denied" in content or "403 Forbidden" in content:
+                print(f"[{username}] ⛔ 403 BLOCKED DETECTED! Aborting.", flush=True)
+                raise Exception("BLOCKED: 403 Forbidden")
+        except Exception as e:
+            if "BLOCKED" in str(e): raise e
         await asyncio.sleep(2)
         await aggressive_popup_cleanup(page, username, rounds=2)
 
@@ -263,7 +286,7 @@ async def process_account(browser, account, selectors):
         print(f"[{username}] 💰 Looking for balance...", flush=True)
         balance = "N/A"
         
-        for attempt in range(40):
+        for attempt in range(100):
             try:
                 if attempt % 2 == 0:
                     await nuclear_popup_removal(page, username)
