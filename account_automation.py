@@ -210,7 +210,10 @@ async def process_account(browser, account, selectors):
             "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": '"Windows"',
-        }
+        },
+        timezone_id="Asia/Kolkata",  # 2. Set Timezone to IST
+        geolocation={"latitude": 17.3850, "longitude": 78.4867}, # 3. Set GPS (Hyderabad)
+        permissions=["geolocation"]  # Allow site to see the fake location
     )
     
     stealth_js = """
@@ -243,6 +246,7 @@ async def process_account(browser, account, selectors):
         # --- CRITICAL: CHECK FOR 403 BLOCKED ---
         try:
             title = await page.title()
+            print("page title :",title)
             content = await page.content()
             if "403 Forbidden" in title or "Access Denied" in content or "403 Forbidden" in content:
                 print(f"[{username}] ⛔ 403 BLOCKED DETECTED! Aborting.", flush=True)
