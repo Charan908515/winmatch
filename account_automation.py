@@ -151,7 +151,7 @@ async def process_account(browser, account, selectors):
         # 4. Fill Credentials
         # Force-fill using JS if the element says "not visible" (common Playwright bug)
         try:
-            await page.fill(selectors["username_field"], username, timeout=500000)
+            await page.fill(selectors["username_field"], username, timeout=60000)
         except:
              await page.evaluate(f"document.querySelector('{selectors['username_field']}').value = '{username}'")
              
