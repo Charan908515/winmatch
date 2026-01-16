@@ -12,7 +12,7 @@ MAX_RETRIES = 2
 
 ACCOUNTS_FILE = "accounts.csv"
 RESULTS_FILE = "account_balances.csv"
-FAILED_FILE = "failed_accounts.csv"
+FAILED_FILE = "failed_accounts.csv"  # <--- SEPARATE FILE FOR FAILURES
 SELECTORS_FILE = "selectors.json"
 SCREENSHOTS_DIR = "screenshots"
 
@@ -44,6 +44,7 @@ async def save_result(row):
             writer.writerow(row)
 
 async def save_failed(row):
+    """Saves ONLY failed accounts to a separate CSV for easy retrying."""
     async with failed_lock:
         file_exists = os.path.exists(FAILED_FILE)
         with open(FAILED_FILE, "a", newline="", encoding="utf-8") as f:
@@ -252,19 +253,21 @@ async def worker(worker_id, queue, browser, selectors):
 
             except Exception as e:
                 err_msg = str(e)
+                # CRITICAL ERROR: IP BLOCK
                 if "BLOCKED" in err_msg or "403" in err_msg:
                     print("CRITICAL: IP seems blocked. Stopping worker.")
                     fail_data = {"username": username, "password": account["password"], "balance": "0", "status": "Blocked", "error": "IP BLOCKED"}
                     await save_result(fail_data)
-                    await save_failed(fail_data)
+                    await save_failed(fail_data) # SAVE TO FAILED FILE
                     async with stats_lock: STATS["failed"] += 1
                     queue.task_done()
                     return
 
+                # MAX RETRIES REACHED
                 if attempt == MAX_RETRIES:
                     fail_data = {"username": username, "password": account["password"], "balance": "0", "status": "Failed", "error": err_msg}
                     await save_result(fail_data)
-                    await save_failed(fail_data)
+                    await save_failed(fail_data) # SAVE TO FAILED FILE
                     async with stats_lock:
                         STATS["processed"] += 1
                         STATS["failed"] += 1
@@ -287,7 +290,7 @@ async def main():
         return
     all_accounts = list(csv.DictReader(open(ACCOUNTS_FILE)))
     
-    # Sharding Logic
+    # Sharding Logic (Runs automatically based on YAML settings)
     try:
         shard_index = int(os.getenv("SHARD_INDEX", 0))
         total_shards = int(os.getenv("TOTAL_SHARDS", 1))
