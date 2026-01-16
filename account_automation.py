@@ -101,7 +101,7 @@ async def process_account(browser, account, selectors):
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        locale="en-US"
+        locale="en-IN"
     )
     
     # Block heavy media
@@ -121,21 +121,45 @@ async def process_account(browser, account, selectors):
             print(f"[{username}] Navigation timed out (continuing)...")
 
         # 3. Login
-        print(f"[{username}] Logging in...", flush=True)
+        # 3. Login
         await dismiss_overlays(page, username)
-        
-        # Robust Login Click
+        print(f"[{username}] Logging in...", flush=True)
+        # Try to find a VISIBLE login button specifically
         try:
-            await page.click(selectors["landing_page_login_button"], timeout=5000)
+            # Look for the specific header login button first
+            if await page.locator(selectors["landing_page_login_button"]).is_visible():
+                await page.click(selectors["landing_page_login_button"], timeout=500000)
+            else:
+                # Fallback: Click the first 'Login' text that is actually visible
+                await page.click("text=Login >> visible=true", timeout=500000)
         except:
-            # Fallback to Text Match if selector fails
-            print(f"[{username}] Standard login button failed, trying text match...")
-            await page.click("text=Login", timeout=5000)
+            # Emergency Fallback: If elements are hidden (mobile menu?), force a JS click
+            print(f"[{username}] Standard login click failed. Attempting JS force click...")
+            await page.evaluate(f"""() => {{
+                const btn = document.querySelector('{selectors["landing_page_login_button"]}');
+                if (btn) btn.click();
+            }}""")
 
-        # Fill Form
-        await page.fill(selectors["username_field"], username)
+        # Wait for the login form (username field) to appear
+        try:
+            # Wait for the username input to be visible before typing
+            # This ensures the modal/popup has finished opening
+            await page.wait_for_selector(selectors["username_field"], state="visible", timeout=10000)
+        except:
+            print(f"[{username}] Warning: Username field not visible yet.")
+
+        # 4. Fill Credentials
+        # Force-fill using JS if the element says "not visible" (common Playwright bug)
+        try:
+            await page.fill(selectors["username_field"], username, timeout=500000)
+        except:
+             await page.evaluate(f"document.querySelector('{selectors['username_field']}').value = '{username}'")
+             
         await page.fill(selectors["password_field"], password)
         await page.press(selectors["password_field"], "Enter")
+        
+        # Robust Login Click
+        
 
         # 4. Smart Balance Wait (Replaces fixed 60s sleep)
         print(f"[{username}] Login submitted. Polling for balance...", flush=True)
@@ -152,7 +176,7 @@ async def process_account(browser, account, selectors):
                 
                 # Check balance
                 bal_loc = page.locator(selectors["avaliable_balance"])
-                raw_text = await bal_loc.text_content(timeout=500)
+                raw_text = await bal_loc.text_content(timeout=5000)
                 
                 if raw_text:
                     text = raw_text.strip()
