@@ -150,11 +150,14 @@ async def click_all_close_buttons(page, username):
         print(f"[{username}] 🎯 Clicked {clicked} close buttons", flush=True)
 
 async def aggressive_popup_cleanup(page, username, rounds=3):
-    for round_num in range(rounds):
-        await nuclear_popup_removal(page, username)
-        await asyncio.sleep(0.3)
-        await click_all_close_buttons(page, username)
-        await asyncio.sleep(0.3)
+    try:
+        for round_num in range(rounds):
+            await nuclear_popup_removal(page, username)
+            await asyncio.sleep(0.3)
+            await click_all_close_buttons(page, username)
+            await asyncio.sleep(0.3)
+    except:
+        pass
 
 # ================= PAGE LOAD DETECTION =================
 async def wait_for_page_fully_loaded(page, username, timeout_seconds=30):
@@ -213,7 +216,13 @@ async def process_account(browser, account, selectors):
     page = await context.new_page()
 
     try:
-        await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font","stylesheet"] else route.continue_())
+        await page.route(
+            "**/*",
+            lambda route: route.abort()
+            if route.request.resource_type in ["image", "media", "font", "stylesheet", "other"]
+            or any(x in route.request.url for x in ["google-analytics", "facebook", "gtm.js", "fbevents", "ads", "tracker"])
+            else route.continue_(),
+        )
 
         print(f"[{username}] 🌐 Navigating...", flush=True)
         await page.goto(selectors["website"], timeout=600000)
@@ -222,7 +231,7 @@ async def process_account(browser, account, selectors):
 
         print(f"[{username}] 🔑 Clicking login...", flush=True)
         try:
-            await page.click(selectors["landing_page_login_button"], timeout=50000)
+            await page.click(selectors["landing_page_login_button"], timeout=60000)
         except:
             try: await page.evaluate(f"document.querySelector('{selectors['landing_page_login_button']}').click()")
             except: print(f"[{username}] ⚠️ Login button click failed", flush=True)
@@ -230,16 +239,16 @@ async def process_account(browser, account, selectors):
         await asyncio.sleep(1)
 
         print(f"[{username}] ✍️ Filling credentials...", flush=True)
-        await page.fill(selectors["username_field"], username)
-        await page.fill(selectors["password_field"], password)
+        await page.fill(selectors["username_field"], username,timeout=600000)
+        await page.fill(selectors["password_field"], password,timeout=600000)
         await page.press(selectors["password_field"], "Enter")
         
         print(f"[{username}] ⏳ Waiting for login...", flush=True)
-        try: await page.wait_for_load_state(timeout=100000)
+        try: await page.wait_for_load_state(timeout=600000)
         except: await asyncio.sleep(3)
         
         otp=False
-        for i in range(20):
+        for i in range(200):
             await asyncio.sleep(1)
             if "?uid=" in page.url:
                 otp=True
@@ -254,7 +263,7 @@ async def process_account(browser, account, selectors):
         print(f"[{username}] 💰 Looking for balance...", flush=True)
         balance = "N/A"
         
-        for attempt in range(20):
+        for attempt in range(40):
             try:
                 if attempt % 2 == 0:
                     await nuclear_popup_removal(page, username)
@@ -262,7 +271,7 @@ async def process_account(browser, account, selectors):
                 
                 bal_loc = page.locator(selectors["avaliable_balance"])
                 if await bal_loc.is_visible():
-                    text = (await bal_loc.inner_text(timeout=1000)).strip()
+                    text = (await bal_loc.inner_text(timeout=100000)).strip()
                     if text and any(c.isdigit() for c in text) and "LOADING" not in text.upper():
                         balance = text
                         print(f"[{username}] ✅ Balance found: {balance}", flush=True)
