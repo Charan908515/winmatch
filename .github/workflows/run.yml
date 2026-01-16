@@ -7,16 +7,18 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 180 # Increased to 2 hours for 50 accounts per shard
+    # Reduced timeout because 10 accounts should finish quickly
+    timeout-minutes: 60 
 
-    # === CONFIGURATION FOR 300 ACCOUNTS (50 PER COMPUTER) ===
-    # Math: 300 Accounts / 50 per Comp = 6 Computers needed.
+    # === CONFIGURATION FOR 300 ACCOUNTS (10 PER SHARD) ===
+    # Math: 300 Accounts / 30 Shards = 10 Accounts per run.
     strategy:
       fail-fast: false
+      max-parallel: 20 # GitHub Free limit is usually 20 concurrent jobs
       matrix:
-        # We launch 6 computers (Indexes 0 to 5)
-        shard: [0, 1, 2, 3, 4, 5]
-    # =======================================================
+        # We launch 30 shards (Indexes 0 to 29)
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+    # =====================================================
 
     steps:
       - uses: actions/checkout@v4
@@ -35,11 +37,13 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
 
       - name: Create Accounts File
-        # Ensure secret 'ACCOUNTS_CSV' has all 300 accounts
-        run: echo "${{ secrets.ACCOUNTS_CSV }}" > accounts.csv
+        # CRITICAL: Filename matches your Python config variable ACCOUNTS_FILE
+        run: echo "${{ secrets.ACCOUNTS_CSV }}" > ch_accounts_reversed.csv
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -48,11 +52,12 @@ jobs:
       - name: Run script (Shard ${{ matrix.shard }})
         env:
           PYTHONUNBUFFERED: 1
-          # Pass the shard index (0 to 5)
+          # Pass the shard index (0 to 29)
           SHARD_INDEX: ${{ matrix.shard }}
-          # Set this to 6 so the script splits the 300 accounts into 6 chunks
-          TOTAL_SHARDS: 6
+          # Set this to 30 so the script splits 300 accounts into chunks of 10
+          TOTAL_SHARDS: 30
         run: python -u account_automation.py
+        # Note: Ensure your python filename is main.py or update the line above
 
       - name: Upload results
         if: always()
@@ -61,6 +66,6 @@ jobs:
           name: results-shard-${{ matrix.shard }}
           path: |
             account_balances.csv
-            failed_accounts.csv
+            output_chakri.txt
             progress.json
             screenshots/
