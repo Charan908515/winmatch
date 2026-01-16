@@ -1,21 +1,21 @@
-name: Playwright Automation (Test 50)
+name: Playwright Automation (300 Accounts)
 
-# 1. Manual Trigger Only (No automatic schedule)
+# 1. Manual Trigger Only
 on:
   workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 60 # Set to 60 mins since 10 accounts take ~15-20 mins
+    timeout-minutes: 180 # Increased to 2 hours for 50 accounts per shard
 
-    # === CONFIGURATION FOR 50 ACCOUNTS (10 PER COMPUTER) ===
-    # Math: 50 Accounts / 10 per Comp = 5 Computers needed.
+    # === CONFIGURATION FOR 300 ACCOUNTS (50 PER COMPUTER) ===
+    # Math: 300 Accounts / 50 per Comp = 6 Computers needed.
     strategy:
       fail-fast: false
       matrix:
-        # We launch 5 computers (Indexes 0, 1, 2, 3, 4)
-        shard: [0, 1, 2, 3, 4]
+        # We launch 6 computers (Indexes 0 to 5)
+        shard: [0, 1, 2, 3, 4, 5]
     # =======================================================
 
     steps:
@@ -38,7 +38,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Create Accounts File
-        # Make sure your secret 'ACCOUNTS_CSV' has all 50 accounts!
+        # Ensure secret 'ACCOUNTS_CSV' has all 300 accounts
         run: echo "${{ secrets.ACCOUNTS_CSV }}" > accounts.csv
 
       - name: Install Playwright browsers
@@ -48,10 +48,10 @@ jobs:
       - name: Run script (Shard ${{ matrix.shard }})
         env:
           PYTHONUNBUFFERED: 1
-          # Pass the shard index (0, 1, 2, 3, or 4)
+          # Pass the shard index (0 to 5)
           SHARD_INDEX: ${{ matrix.shard }}
-          # Set this to 5 so the script knows to split the list by 5
-          TOTAL_SHARDS: 5
+          # Set this to 6 so the script splits the 300 accounts into 6 chunks
+          TOTAL_SHARDS: 6
         run: python -u account_automation.py
 
       - name: Upload results
