@@ -271,14 +271,17 @@ async def process_account(browser, account, selectors):
         await page.press(selectors["password_field"], "Enter")
         
         print(f"[{username}] ⏳ Waiting for login...", flush=True)
-        try: await page.wait_for_load_state(timeout=600000)
-        except: await asyncio.sleep(3)
+        #try: await page.wait_for_load_state(timeout=600000)
+        #except: await asyncio.sleep(3)
         
         otp=False
         for i in range(200):
+            print(f"[{username}]Trying {i} th time URL :{page.url}" )
             await asyncio.sleep(1)
             if "?uid=" in page.url:
                 otp=True
+                
+                print(f"[{username}] 🚀 Redirected successfully!", flush=True)
                 break
         if not otp:
             raise Exception("OTP required - account skipped")
