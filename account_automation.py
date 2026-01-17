@@ -232,7 +232,7 @@ async def process_account(browser, account, selectors):
         await page.route(
             "**/*",
             lambda route: route.abort()
-            if route.request.resource_type in ["image", "media", "font", "stylesheet", "other"]
+            if route.request.resource_type in ["image", "media", "font", "other"]
             or any(x in route.request.url for x in ["google-analytics", "facebook", "gtm.js", "fbevents", "ads", "tracker"])
             else route.continue_(),
         )
